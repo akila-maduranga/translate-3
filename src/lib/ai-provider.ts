@@ -80,6 +80,23 @@ export function getProvider(): Provider {
   return "deepseek";
 }
 
+/** Check if a specific provider is available (key configured). */
+export function isAvailable(provider: Provider): boolean {
+  if (provider === "gemini") return !!process.env.GEMINI_API_KEY;
+  if (provider === "openrouter") return !!process.env.OPENROUTER_API_KEY;
+  return !!process.env.DEEPSEEK_API_KEY;
+}
+
+/** Pick the best available provider, with a preference order. */
+export function pickBestAvailable(preferred?: Provider): Provider {
+  if (preferred && isAvailable(preferred)) return preferred;
+  // Preference order: deepseek → gemini → openrouter
+  for (const p of ["deepseek", "gemini", "openrouter"] as Provider[]) {
+    if (isAvailable(p)) return p;
+  }
+  return "deepseek"; // fallback
+}
+
 /** Get the API key for the active provider. Throws if missing. */
 export function getApiKey(): string {
   const provider = getProvider();
