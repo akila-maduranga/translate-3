@@ -52,6 +52,13 @@ export interface CallOptions {
   maxTokens?: number;
   /** Ask the model to return JSON. All providers support this. */
   jsonMode?: boolean;
+  /**
+   * Enable reasoning mode (OpenRouter only). Models that support it
+   * (o3, deepseek-r1, etc.) will think internally before responding.
+   * Reasoning is always excluded from the response so output stays clean.
+   * Gemma/Gemini/DeepSeek-chat ignore this field.
+   */
+  reasoning?: boolean;
   signal?: AbortSignal;
 }
 
@@ -157,6 +164,7 @@ export async function callAI(opts: CallOptions): Promise<CallResult> {
       temperature: opts.temperature,
       maxTokens: opts.maxTokens,
       responseFormat: opts.jsonMode ? "json_object" : undefined,
+      reasoning: opts.reasoning,
       signal: opts.signal,
     });
     return result;
@@ -216,6 +224,7 @@ export async function* streamAI(
       messages: opts.messages,
       temperature: opts.temperature,
       maxTokens: opts.maxTokens,
+      reasoning: opts.reasoning,
       signal: opts.signal,
     });
     return;

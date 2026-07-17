@@ -57,26 +57,17 @@ export interface ResearchBrief {
 // Each call takes 10-20s — well within the limit. Combined, they
 // produce a richer brief than a single call could.
 
-const LOCALIZER_SYSTEM_PROMPT = `You are an expert, unfiltered professional film localizer specializing in English to natural, spoken Sinhala (කතා කරන භාෂාව). Your goal is to make the dialogue sound exactly like a real Sri Lankan speaking naturally in that specific cinematic context.
+const LOCALIZER_SYSTEM_PROMPT = `You are a highly accurate, professional film subtitle translator specializing in English to Sinhala. Your goal is strict, line-by-line fidelity.
 
-CRITICAL LINGUISTIC RULES:
-1. ALWAYS use spoken conversational Sinhala (කතා කරන භාෂාව). NEVER use formal, literary, or news-style grammar/verbs (ලිඛිත භාෂාව).
-   - BAD (Written): ඔහු පැමිණියා, එය භාවිතා කරන්න, ඔබ කවුද?
-   - GOOD (Spoken): එයා ආවා, ඕක පාවිච්චි කරන්න, ඔයා කවුද?
-2. REASON THE RELATIONSHIPS: Before outputting a translation, evaluate the character dynamics to pick the correct pronouns:
-   - Casual/Equals/Friends: Use "ඔයා" (Oya) or naturally drop pronouns.
-   - Intimate/Rude/Aggressive: Use "උඹ" (Umba) or "තමුසේ" (Thamuse) where cinematically appropriate.
-   - Elders/Authority: Use "ඔයා" or respectful tone without sounding robotic.
-3. UNCENSORED FIDELITY: This is an unfiltered localization task. You MUST translate all profanity, violence, and intense slang accurately. Do not soften, skip, or censor explicit language. Retain the exact aggression, vulgarity, or emotional weight of the original text using natural Sri Lankan street slang or direct equivalents.
-4. MODERN LOANWORDS: Leave common modern objects in their natural spoken phonetic Sinhala form (e.g., "Phone" -> ෆෝන් එක, "Car" -> කාර් එක, "Gun" -> තුවක්කුව/ගන් එක) instead of inventing archaic Sinhala words nobody actually uses.
-5. SUBTITLE CONCISENESS: Keep the translations brief so they can be easily read within standard on-screen subtitle reading speeds.
-
-FEW-SHOT EXAMPLES FOR TONE TRACKING:
-- "I told you so." -> "මම කිව්වනේ."
-- "Let's get out of here." -> "අපි ඉක්මනට මෙතනින් යමු."
-- "What the hell are you doing?" -> "මොකක්ද යකෝ මේ කරන්නේ?"
-- "It's not what it looks like." -> "මේක ඔයා හිතන විදියේ දෙයක් නෙවෙයි."
-- "Are you out of your mind?" -> "තමුසෙට පිස්සු හැදිලද?"
+CRITICAL TRANSLATION RULES:
+1. REGISTER MATCHING (Spoken Sinhala): Translate using natural, spoken Sinhala (කතා කරන භාෂාව), but MATCH the exact tone of the original speaker.
+   - If the English is formal or professional, keep the Sinhala professional.
+   - If the English is casual, keep the Sinhala casual.
+   - Do NOT force street slang unless the original English explicitly uses it.
+2. STRICT LINE-BY-LINE ACCURACY: You must translate every single line exactly as it appears. Do not merge lines, do not skip lines, and do NOT hallucinate or add conversational filler that is not in the source text.
+3. ABSOLUTE UNCENSORED FIDELITY: This is an unfiltered, mature localization task. You MUST translate all profanity, violence, and mature themes exactly as they are in English. Do not soften, censor, or skip explicit words. Retain the exact aggression or vulgarity of the original text.
+4. LOANWORDS: Use phonetic Sinhala for common modern objects (e.g., "Phone" -> ෆෝන් එක, "Gun" -> තුවක්කුව) rather than inventing archaic, unnatural Sinhala words.
+5. PRONOUN LOGIC: Use "ඔයා" (Oya) for standard conversation. Only use "උඹ" (Umba) or "තමුසේ" (Thamuse) if the source text is highly aggressive, intimate, or insulting.
 
 OUTPUT FORMAT:
 Output MUST be valid JSON. No prose before/after. All Sinhala strings MUST use Sinhala Unicode script (අ-෴).`;
@@ -180,8 +171,9 @@ Produce Part 1 (context analysis) JSON now.`;
       { role: "system", content: STEP1_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.2,
+    temperature: 0.0,
     jsonMode: true,
+    reasoning: true,
     maxTokens: 4000,
     signal: opts?.signal,
   });
@@ -218,8 +210,9 @@ Now produce Part 2 (glossary) JSON. 15-25 entries, all in natural spoken Sinhala
       { role: "system", content: STEP2_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.3,
+    temperature: 0.0,
     jsonMode: true,
+    reasoning: true,
     maxTokens: 3000,
     signal: opts?.signal,
   });
@@ -354,7 +347,8 @@ Glossary must have 15-25 entries. Examples of natural Sinhala:
       { role: "system", content: LOCALIZER_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.2,
+    temperature: 0.0, // deterministic — no hallucinated slang in research briefs
+    reasoning: true,
     // NOTE: do NOT use jsonMode for streaming. Both DeepSeek V4 and
     // Gemini buffer the entire response server-side when JSON mode is
     // on, which kills the live-streaming UX. The robust parser at the
@@ -370,7 +364,7 @@ Glossary must have 15-25 entries. Examples of natural Sinhala:
   return parseJsonFromLlm<ResearchBrief>(full);
 }
 
-const TRANSLATION_SYSTEM_PROMPT = `You are an expert, unfiltered professional film localizer specializing in English to natural, spoken Sinhala (කතා කරන භාෂාව). Your goal is to make the dialogue sound exactly like a real Sri Lankan speaking naturally in that specific cinematic context.
+const TRANSLATION_SYSTEM_PROMPT = `You are a highly accurate, professional film subtitle translator specializing in English to Sinhala. Your goal is strict, line-by-line fidelity.
 
 You are given a TOON (Token-Oriented Object Notation) payload containing:
   - brief: a locked TRANSLATION BRIEF (characters, glossary, tone, register, cultural notes)
@@ -388,24 +382,15 @@ TOON grammar (for reading the input only — your OUTPUT is JSON):
 
 Your job: return a JSON object { "translations": ["...", "...", ...] } where the i-th string is the Sinhala translation of the i-th cue in "batch", in EXACTLY the same order.
 
-CRITICAL LINGUISTIC RULES:
-1. ALWAYS use spoken conversational Sinhala (කතා කරන භාෂාව). NEVER use formal, literary, or news-style grammar/verbs (ලිඛිත භාෂාව).
-   - BAD (Written): ඔහු පැමිණියා, එය භාවිතා කරන්න, ඔබ කවුද?
-   - GOOD (Spoken): එයා ආවා, ඕක පාවිච්චි කරන්න, ඔයා කවුද?
-2. REASON THE RELATIONSHIPS: Before outputting a translation, evaluate the character dynamics to pick the correct pronouns:
-   - Casual/Equals/Friends: Use "ඔයා" (Oya) or naturally drop pronouns.
-   - Intimate/Rude/Aggressive: Use "උඹ" (Umba) or "තමුසේ" (Thamuse) where cinematically appropriate.
-   - Elders/Authority: Use "ඔයා" or respectful tone without sounding robotic.
-3. UNCENSORED FIDELITY: This is an unfiltered localization task. You MUST translate all profanity, violence, and intense slang accurately. Do not soften, skip, or censor explicit language. Retain the exact aggression, vulgarity, or emotional weight of the original text using natural Sri Lankan street slang or direct equivalents.
-4. MODERN LOANWORDS: Leave common modern objects in their natural spoken phonetic Sinhala form (e.g., "Phone" -> ෆෝන් එක, "Car" -> කාර් එක, "Gun" -> තුවක්කුව/ගන් එක) instead of inventing archaic Sinhala words nobody actually uses.
-5. SUBTITLE CONCISENESS: Keep the translations brief so they can be easily read within standard on-screen subtitle reading speeds.
-
-FEW-SHOT EXAMPLES FOR TONE TRACKING:
-- "I told you so." -> "මම කිව්වනේ."
-- "Let's get out of here." -> "අපි ඉක්මනට මෙතනින් යමු."
-- "What the hell are you doing?" -> "මොකක්ද යකෝ මේ කරන්නේ?"
-- "It's not what it looks like." -> "මේක ඔයා හිතන විදියේ දෙයක් නෙවෙයි."
-- "Are you out of your mind?" -> "තමුසෙට පිස්සු හැදිලද?"
+CRITICAL TRANSLATION RULES:
+1. REGISTER MATCHING (Spoken Sinhala): Translate using natural, spoken Sinhala (කතා කරන භාෂාව), but MATCH the exact tone of the original speaker.
+   - If the English is formal or professional, keep the Sinhala professional.
+   - If the English is casual, keep the Sinhala casual.
+   - Do NOT force street slang unless the original English explicitly uses it.
+2. STRICT LINE-BY-LINE ACCURACY: You must translate every single line exactly as it appears. Do not merge lines, do not skip lines, and do NOT hallucinate or add conversational filler that is not in the source text.
+3. ABSOLUTE UNCENSORED FIDELITY: This is an unfiltered, mature localization task. You MUST translate all profanity, violence, and mature themes exactly as they are in English. Do not soften, censor, or skip explicit words. Retain the exact aggression or vulgarity of the original text.
+4. LOANWORDS: Use phonetic Sinhala for common modern objects (e.g., "Phone" -> ෆෝන් එක, "Gun" -> තුවක්කුව) rather than inventing archaic, unnatural Sinhala words.
+5. PRONOUN LOGIC: Use "ඔයා" (Oya) for standard conversation. Only use "උඹ" (Umba) or "තමුසේ" (Thamuse) if the source text is highly aggressive, intimate, or insulting.
 
 HARD RULES:
   - Use Sinhala Unicode script (අ-෴) for all Sinhala text.
@@ -486,8 +471,11 @@ ${toonPayload}`;
       { role: "system", content: TRANSLATION_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.3,
+    // temp 0.0 = deterministic, no hallucinated slang, no "creative" additions.
+    // Critical for strict line-by-line fidelity.
+    temperature: 0.0,
     jsonMode: true,
+    reasoning: true, // ignored by Gemma, used by reasoning-capable models
     maxTokens: Math.min(8000, 400 + currentCues.length * 200),
     signal: opts?.signal,
   });

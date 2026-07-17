@@ -38,6 +38,12 @@ export interface OpenRouterCallOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: "text" | "json_object";
+  /**
+   * Enable reasoning mode. Models that support it (o3, deepseek-r1, etc.)
+   * will think internally before responding. Gemma ignores this field.
+   * Reasoning is always excluded from the response so SRT output stays clean.
+   */
+  reasoning?: boolean;
   signal?: AbortSignal;
 }
 
@@ -95,6 +101,12 @@ export async function callOpenRouter(
   if (opts.maxTokens) body.max_tokens = opts.maxTokens;
   if (opts.responseFormat === "json_object") {
     body.response_format = { type: "json_object" };
+  }
+  // Reasoning mode — passes through for models that support it (o3, r1).
+  // Gemma ignores this field. Reasoning is always excluded from response
+  // so SRT/JSON output stays clean.
+  if (opts.reasoning !== false) {
+    body.reasoning = { enabled: true, exclude_from_response: true };
   }
 
   let lastErr: Error | null = null;
@@ -184,6 +196,10 @@ export async function* streamOpenRouter(
     stream: true,
   };
   if (opts.maxTokens) body.max_tokens = opts.maxTokens;
+  // Reasoning mode — passes through for models that support it.
+  if (opts.reasoning !== false) {
+    body.reasoning = { enabled: true, exclude_from_response: true };
+  }
   // NOTE: do NOT use responseFormat for streaming — causes buffering.
   // The robust parser at the call site handles whatever format comes back.
 
