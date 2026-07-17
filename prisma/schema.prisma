@@ -13,7 +13,7 @@ datasource db {
   //   provider = "postgresql"
   //   url      = env("DATABASE_URL")  // neon postgres connection string
   // The schema is identical for both providers.
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
