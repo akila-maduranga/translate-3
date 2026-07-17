@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // LOCAL DEV: SQLite. For production (Netlify) switch to:
+  //   provider = "postgresql"
+  //   url      = env("DATABASE_URL")  // neon postgres connection string
+  // The schema is identical for both providers.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  FREE      // 1 subtitle translation per day
+  PREMIUM   // unlimited (granted by admin)
+  ADMIN     // unlimited + can manage users
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  /// bcrypt-hashed password. Never returned to the client.
+  passwordHash  String
+  role          Role     @default(FREE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  /// All subtitle translation jobs this user has run.
+  translations  TranslationJob[]
+  /// Daily usage counters — one row per user per UTC day.
+  dailyUsages   DailyUsage[]
+
+  @@index([role])
+}
+
+/// One row per (user, UTC day). Used to enforce the free-tier limit
+/// of 1 subtitle translation per day. We don't delete old rows —
+/// they double as usage history for the admin panel.
+model DailyUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  /// UTC date in YYYY-MM-DD format. Used as part of the unique key
+  /// so we can do a fast lookup for "today's row for this user".
+  date      String
+  /// Number of subtitle translation jobs completed today.
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+/// Record of a single subtitle translation job (one .srt/.vtt file
+/// translated end-to-end). Used for the admin panel's usage stats
+/// and to show users their own history.
+model TranslationJob {
+  id          String   @id @default(cuid())
+  userId      String
+  /// Movie/TV title the user selected (or "AI-identified: <title>").
+  title       String
+  /// Number of cues in the uploaded file.
+  cueCount    Int
+  /// Number of cues successfully translated.
+  translatedCount Int
+  /// "tmdb" or "ai" — which lookup path was used.
+  source      String
+  /// Format of the uploaded file ("srt" or "vtt").
+  format      String
+  /// Duration in milliseconds (for stats).
+  durationMs  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+/// Cache for DeepSeek-generated research briefs, keyed by TMDB id + media type.
+/// Lets users re-translate the same movie without paying for another research
+/// call. User-edited glossary overrides are also stored here so they persist
+/// across sessions.
+model ResearchBriefCache {
+  id            String   @id @default(cuid())
+  /// Composite key: `${tmdbMediaType}-${tmdbId}` (e.g. "movie-27205").
+  cacheKey      String   @unique
+  tmdbId        Int
+  tmdbMediaType String
+  /// Title from TMDB, stored for quick display in a cache list UI.
+  title         String
+  /// Raw markdown streamed from /api/research (human-readable brief).
+  rawMarkdown   String
+  /// Structured brief JSON (ResearchBrief schema) used by /api/translate.
+  briefJson     String
+  /// User-supplied glossary overrides — applied AFTER the locked brief
+  /// glossary, so they always win. JSON array of {english, sinhala, note?}.
+  userOverrides String   @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tmdbId, tmdbMediaType])
+}
