@@ -14,7 +14,7 @@
  *
  * Optional overrides:
  *   - DEEPSEEK_MODEL (default: "deepseek-v4-pro")
- *   - GEMINI_MODEL   (default: "gemini-1.5-flash")
+ *   - GEMINI_MODEL   (default: "gemini-3.5-flash")
  */
 
 import {

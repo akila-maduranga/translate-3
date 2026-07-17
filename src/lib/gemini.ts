@@ -1,7 +1,7 @@
 /**
  * Google Gemini API client.
  *
- * Gemini 1.5 Flash is free tier with limits:
+ * Gemini 3.5 Flash is free tier with limits:
  *   - 15 RPM (requests per minute)
  *   - 1,500 RPD (requests per day)
  *   - 1,000,000 TPM (tokens per minute)
@@ -49,7 +49,7 @@ export interface GeminiCallResult {
 
 /** Default model — override with GEMINI_MODEL env var. */
 export const DEFAULT_GEMINI_MODEL =
-  process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
 const MAX_RETRIES = 4;
 const INITIAL_BACKOFF_MS = 1500; // be conservative — free tier is strict
