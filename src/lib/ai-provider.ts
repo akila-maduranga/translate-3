@@ -1,20 +1,27 @@
 /**
  * AI provider abstraction.
  *
- * Picks between DeepSeek and Gemini based on the `AI_PROVIDER` env var.
- * Default: "deepseek". Set `AI_PROVIDER="gemini"` to use Gemini 1.5 Flash.
+ * Picks between DeepSeek, Gemini, and OpenRouter based on the
+ * `AI_PROVIDER` env var. Default: "deepseek".
  *
- * This abstraction normalises both providers to the same interface so
- * the rest of the app (research, translation, ai-search) doesn't need
- * to know which one is in use.
+ *   - "deepseek"   → DEEPSEEK_API_KEY (pay-per-use, fast)
+ *   - "gemini"     → GEMINI_API_KEY (free tier, 15 RPM)
+ *   - "openrouter" → OPENROUTER_API_KEY (free tier, many models)
+ *
+ * OpenRouter is the most flexible — it's an OpenAI-compatible gateway
+ * to 100+ models. Set OPENROUTER_MODEL to swap models without code
+ * changes (e.g. "google/gemma-4-26b-a4b-it:free",
+ * "meta-llama/llama-3.3-70b-instruct:free", etc.)
  *
  * Required env vars per provider:
- *   - deepseek: DEEPSEEK_API_KEY
- *   - gemini:   GEMINI_API_KEY
+ *   - deepseek:   DEEPSEEK_API_KEY
+ *   - gemini:     GEMINI_API_KEY
+ *   - openrouter: OPENROUTER_API_KEY
  *
  * Optional overrides:
- *   - DEEPSEEK_MODEL (default: "deepseek-v4-pro")
- *   - GEMINI_MODEL   (default: "gemini-3.5-flash")
+ *   - DEEPSEEK_MODEL   (default: "deepseek-v4-pro")
+ *   - GEMINI_MODEL     (default: "gemini-3.5-flash")
+ *   - OPENROUTER_MODEL (default: "google/gemma-4-26b-a4b-it:free")
  */
 
 import {
@@ -25,10 +32,14 @@ import {
 import {
   callGemini,
   streamGemini,
-  DEFAULT_GEMINI_MODEL,
 } from "@/lib/gemini";
+import {
+  callOpenRouter,
+  streamOpenRouter,
+  DEFAULT_OPENROUTER_MODEL,
+} from "@/lib/openrouter";
 
-export type Provider = "deepseek" | "gemini";
+export type Provider = "deepseek" | "gemini" | "openrouter";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -39,7 +50,7 @@ export interface CallOptions {
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
-  /** Ask the model to return JSON. Both providers support this. */
+  /** Ask the model to return JSON. All providers support this. */
   jsonMode?: boolean;
   signal?: AbortSignal;
 }
@@ -58,26 +69,39 @@ export interface CallResult {
 export function getProvider(): Provider {
   const p = (process.env.AI_PROVIDER || "deepseek").toLowerCase().trim();
   if (p === "gemini") return "gemini";
+  if (p === "openrouter") return "openrouter";
   return "deepseek";
 }
 
 /** Get the API key for the active provider. Throws if missing. */
 export function getApiKey(): string {
-  if (getProvider() === "gemini") {
+  const provider = getProvider();
+  if (provider === "gemini") {
     const key = process.env.GEMINI_API_KEY || "";
     if (!key) {
       throw new Error(
         "GEMINI_API_KEY is not configured. Set it as an env var, " +
-          "or switch AI_PROVIDER back to 'deepseek'."
+          "or switch AI_PROVIDER to 'deepseek' or 'openrouter'."
       );
     }
     return key;
   }
+  if (provider === "openrouter") {
+    const key = process.env.OPENROUTER_API_KEY || "";
+    if (!key) {
+      throw new Error(
+        "OPENROUTER_API_KEY is not configured. Set it as an env var, " +
+          "or switch AI_PROVIDER to 'deepseek' or 'gemini'."
+      );
+    }
+    return key;
+  }
+  // deepseek
   const key = process.env.DEEPSEEK_API_KEY || "";
   if (!key) {
     throw new Error(
       "DEEPSEEK_API_KEY is not configured. Set it as an env var, " +
-        "or switch AI_PROVIDER to 'gemini' and set GEMINI_API_KEY."
+        "or switch AI_PROVIDER to 'gemini' or 'openrouter'."
     );
   }
   return key;
@@ -94,9 +118,9 @@ export function isProviderConfigured(): boolean {
 }
 
 /**
- * Synchronous call — normalises both providers to the same interface.
+ * Synchronous call — normalises all providers to the same interface.
  *
- * DeepSeek uses OpenAI-style messages (system/user/assistant roles).
+ * DeepSeek + OpenRouter are OpenAI-compatible (system/user/assistant roles).
  * Gemini uses user/model roles + a separate systemInstruction field.
  * This function handles the conversion.
  */
@@ -105,7 +129,6 @@ export async function callAI(opts: CallOptions): Promise<CallResult> {
   const provider = getProvider();
 
   if (provider === "gemini") {
-    // Extract system message — Gemini takes it as a separate field.
     const systemMsg = opts.messages.find((m) => m.role === "system");
     const conversationMessages = opts.messages
       .filter((m) => m.role !== "system")
@@ -126,6 +149,19 @@ export async function callAI(opts: CallOptions): Promise<CallResult> {
     return result;
   }
 
+  if (provider === "openrouter") {
+    const result = await callOpenRouter({
+      apiKey,
+      model: DEFAULT_OPENROUTER_MODEL,
+      messages: opts.messages,
+      temperature: opts.temperature,
+      maxTokens: opts.maxTokens,
+      responseFormat: opts.jsonMode ? "json_object" : undefined,
+      signal: opts.signal,
+    });
+    return result;
+  }
+
   // DeepSeek — OpenAI-compatible, passes through directly.
   const result = await callDeepSeek({
     apiKey,
@@ -140,12 +176,12 @@ export async function callAI(opts: CallOptions): Promise<CallResult> {
 }
 
 /**
- * Streaming call — normalises both providers.
+ * Streaming call — normalises all providers.
  *
- * NOTE: We do NOT use jsonMode for streaming. DeepSeek V4 buffers the
- * entire response when JSON mode is on (kills the live UX), and Gemini
- * has the same behaviour. The robust parser at the call site handles
- * whatever format comes back.
+ * NOTE: We do NOT use jsonMode for streaming. All three providers
+ * buffer the entire response server-side when JSON mode is on, which
+ * kills the live-streaming UX. The robust parser at the call site
+ * handles whatever format comes back.
  */
 export async function* streamAI(
   opts: CallOptions
@@ -168,7 +204,18 @@ export async function* streamAI(
       messages: conversationMessages,
       temperature: opts.temperature,
       maxTokens: opts.maxTokens,
-      // No responseMimeType — see comment above.
+      signal: opts.signal,
+    });
+    return;
+  }
+
+  if (provider === "openrouter") {
+    yield* streamOpenRouter({
+      apiKey,
+      model: DEFAULT_OPENROUTER_MODEL,
+      messages: opts.messages,
+      temperature: opts.temperature,
+      maxTokens: opts.maxTokens,
       signal: opts.signal,
     });
     return;
@@ -180,7 +227,6 @@ export async function* streamAI(
     messages: opts.messages,
     temperature: opts.temperature,
     maxTokens: opts.maxTokens,
-    // No responseFormat — see comment above.
     signal: opts.signal,
   });
 }
