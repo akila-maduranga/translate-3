@@ -1,0 +1,40 @@
+[build]
+  command = "bun run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_USE_NETLIFY_EDGE = "true"
+
+# Required environment variables (set in Vercel/Netlify UI →
+# Environment variables):
+#
+#   DATABASE_URL     — Neon Postgres connection string
+#                      e.g. postgres://user:pass@ep-xxx.neon.tech/db?sslmode=require
+#                      Get one free at https://neon.tech
+#
+#   AI_PROVIDER      — "gemini" (free tier) or "deepseek" (pay-per-use)
+#
+#   GEMINI_API_KEY   — Required if AI_PROVIDER=gemini.
+#                      Free at https://aistudio.google.com/apikey
+#                      Free tier: 15 RPM / 1500 RPD / 1M TPM.
+#
+#   DEEPSEEK_API_KEY — Required if AI_PROVIDER=deepseek.
+#                      Get one at https://platform.deepseek.com/api_keys
+#
+#   TMDB_API_KEY     — Optional but recommended. v4 Read Access Token from
+#                      https://www.themoviedb.org/settings/api
+#
+#   AUTH_SECRET      — Required. Random 32-char hex string for signing sessions.
+#                      Generate with: openssl rand -hex 32
+#
+#   ADMIN_EMAIL      — Required. Initial admin account email.
+#   ADMIN_PASSWORD   — Required. Initial admin account password.
+#   ADMIN_NAME       — Optional. Display name for the admin.
+
+# The Next.js Runtime plugin handles the .next output automatically.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  node_bundler = "esbuild"
