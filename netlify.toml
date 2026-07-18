@@ -13,17 +13,18 @@
 #                      e.g. postgres://user:pass@ep-xxx.neon.tech/db?sslmode=require
 #                      Get one free at https://neon.tech
 #
-#   AI_PROVIDER      — "deepseek" (default), "gemini" (free), or
-#                      "openrouter" (free, 100+ models)
+#   AI_PROVIDER      — "openrouter" (free, recommended), "gemini" (free),
+#                      or "deepseek" (pay-per-use)
 #
-#   DEEPSEEK_API_KEY — Required if AI_PROVIDER=deepseek.
-#                      Get one at https://platform.deepseek.com/api_keys
+#   OPENROUTER_API_KEY — Required if AI_PROVIDER=openrouter.
+#                        Free at https://openrouter.ai/keys
+#                        Swap models via OPENROUTER_MODEL env var.
 #
 #   GEMINI_API_KEY   — Required if AI_PROVIDER=gemini.
 #                      Free at https://aistudio.google.com/apikey
 #
-#   OPENROUTER_API_KEY — Required if AI_PROVIDER=openrouter.
-#                        Free at https://openrouter.ai/keys
+#   DEEPSEEK_API_KEY — Required if AI_PROVIDER=deepseek.
+#                      Get one at https://platform.deepseek.com/api_keys
 #
 #   TMDB_API_KEY     — Optional but recommended. v4 Read Access Token from
 #                      https://www.themoviedb.org/settings/api
