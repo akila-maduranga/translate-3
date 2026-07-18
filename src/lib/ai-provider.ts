@@ -52,13 +52,6 @@ export interface CallOptions {
   maxTokens?: number;
   /** Ask the model to return JSON. All providers support this. */
   jsonMode?: boolean;
-  /**
-   * Enable reasoning mode (OpenRouter only). Models that support it
-   * (o3, deepseek-r1, etc.) will think internally before responding.
-   * Reasoning is always excluded from the response so output stays clean.
-   * Gemma/Gemini/DeepSeek-chat ignore this field.
-   */
-  reasoning?: boolean;
   signal?: AbortSignal;
 }
 
@@ -78,23 +71,6 @@ export function getProvider(): Provider {
   if (p === "gemini") return "gemini";
   if (p === "openrouter") return "openrouter";
   return "deepseek";
-}
-
-/** Check if a specific provider is available (key configured). */
-export function isAvailable(provider: Provider): boolean {
-  if (provider === "gemini") return !!process.env.GEMINI_API_KEY;
-  if (provider === "openrouter") return !!process.env.OPENROUTER_API_KEY;
-  return !!process.env.DEEPSEEK_API_KEY;
-}
-
-/** Pick the best available provider, with a preference order. */
-export function pickBestAvailable(preferred?: Provider): Provider {
-  if (preferred && isAvailable(preferred)) return preferred;
-  // Preference order: deepseek → gemini → openrouter
-  for (const p of ["deepseek", "gemini", "openrouter"] as Provider[]) {
-    if (isAvailable(p)) return p;
-  }
-  return "deepseek"; // fallback
 }
 
 /** Get the API key for the active provider. Throws if missing. */
@@ -181,7 +157,6 @@ export async function callAI(opts: CallOptions): Promise<CallResult> {
       temperature: opts.temperature,
       maxTokens: opts.maxTokens,
       responseFormat: opts.jsonMode ? "json_object" : undefined,
-      reasoning: opts.reasoning,
       signal: opts.signal,
     });
     return result;
@@ -241,7 +216,6 @@ export async function* streamAI(
       messages: opts.messages,
       temperature: opts.temperature,
       maxTokens: opts.maxTokens,
-      reasoning: opts.reasoning,
       signal: opts.signal,
     });
     return;
